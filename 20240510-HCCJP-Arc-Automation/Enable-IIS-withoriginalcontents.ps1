@@ -1,10 +1,9 @@
-https://learn.microsoft.com/ja-jp/azure/governance/machine-configuration/how-to/develop-custom-package/1-set-up-authoring-environment
-
-https://cloudbrothers.info/azure-persistence-azure-policy-guest-configuration/
+# 参考
+# https://learn.microsoft.com/ja-jp/azure/governance/machine-configuration/how-to/develop-custom-package/1-set-up-authoring-environment
+# https://cloudbrothers.info/azure-persistence-azure-policy-guest-configuration/
 
 
 #PowerShell 7で実行
-
 
 Install-Module -Name 'GuestConfiguration','PSDscResources'
 Install-Module -Name 'PSDesiredStateConfiguration' -AllowPrerelease
