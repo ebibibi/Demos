@@ -48,7 +48,9 @@ Configuration EnableIIS {
                 Test-Path "c:\inetpub\wwwroot\index.htm"
             }
             SetScript = {
-                Copy-Item "\\arc-iisdemo-wac\webcontents\index.htm" "c:\inetpub\wwwroot\index.htm"
+                $url = "https://raw.githubusercontent.com/ebibibi/Demos/main/20240510-HCCJP-Arc-Automation/webcontents/index.htm"
+                $output = "C:\inetpub\wwwroot\index.htm"
+                Invoke-WebRequest -Uri $url -OutFile $output
             }
             DependsOn = "[Script]InstallWebServer"
         }
@@ -68,7 +70,9 @@ Configuration EnableIIS {
                 Test-Path "c:\inetpub\wwwroot\logo.png"
             }
             SetScript = {
-                Copy-Item "\\arc-iisdemo-wac\webcontents\logo.png" "c:\inetpub\wwwroot\logo.png"
+                $url = "https://raw.githubusercontent.com/ebibibi/Demos/main/20240510-HCCJP-Arc-Automation/webcontents/logo.png"
+                $output = "C:\inetpub\wwwroot\logo.png"
+                Invoke-WebRequest -Uri $url -OutFile $output
             }
             DependsOn = "[Script]InstallWebServer"
         }
@@ -78,7 +82,7 @@ Configuration EnableIIS {
 EnableIIS
 
 # localhost.mofをリネームする
-Rename-Item -Path '.\EnableIIS\localhost.mof' -NewName 'EnableIIS.mof'
+Move-Item '.\EnableIIS\localhost.mof' '.\EnableIIS\EnableIIS.mof' -Force
 
 
 # ゲスト構成パッケージを作成する
@@ -86,10 +90,11 @@ New-GuestConfigurationPackage `
   -Name 'EnableIIS' `
   -Configuration './EnableIIS/EnableIIS.mof' `
   -Type AuditAndSet  `
+  -Path './EnableIIS' `
   -Force
 
 # 基本要件のテスト
-Get-GuestConfigurationPackageComplianceStatus -Path .\EnableIIS.zip
+Get-GuestConfigurationPackageComplianceStatus -Path .\EnableIIS\EnableIIS.zip
 
 # 構成適用テスト
-Start-GuestConfigurationPackageRemediation -Path .\EnableIIS.zip
+Start-GuestConfigurationPackageRemediation -Path .\EnableIIS\EnableIIS.zip

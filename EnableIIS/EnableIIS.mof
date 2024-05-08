@@ -1,0 +1,64 @@
+/*
+@TargetNode='localhost'
+@GeneratedBy=Administrator
+@GenerationDate=05/08/2024 11:24:23
+@GenerationHost=ARC-IISDEMO-MC
+*/
+
+instance of MSFT_ScriptResource as $MSFT_ScriptResource1ref
+{
+SourceInfo = "::7::9::Script";
+ ResourceID = "[Script]InstallWebServer";
+ ModuleName = "PSDscResources";
+ SetScript = "\n                Install-WindowsFeature -Name \"Web-Server\"\n            ";
+ ModuleVersion = "2.12.0.0";
+ TestScript = "\n                $featureState = Get-WindowsFeature -Name \"Web-Server\"\n                return $featureState.InstallState -eq \"Installed\"\n            ";
+ GetScript = "\n                $featureState = Get-WindowsFeature -Name \"Web-Server\"\n                return @{\n                    Result = $featureState.InstallState -eq \"Installed\"\n                }\n            ";
+ ConfigurationName = "EnableIIS";
+};
+instance of MSFT_ScriptResource as $MSFT_ScriptResource2ref
+{
+SourceInfo = "::23::9::Script";
+ ResourceID = "[Script]DeployWebsiteContent1";
+ ModuleName = "PSDscResources";
+ SetScript = "\n                $url = \"https://raw.githubusercontent.com/ebibibi/Demos/main/20240510-HCCJP-Arc-Automation/webcontents/index.htm\"\n                $output = \"C:\\inetpub\\wwwroot\\index.htm\"\n                Invoke-WebRequest -Uri $url -OutFile $output\n            ";
+ ModuleVersion = "2.12.0.0";
+ TestScript = "\n                Test-Path \"c:\\inetpub\\wwwroot\\index.htm\"\n            ";
+ GetScript = "\n                $exists = Test-Path \"c:\\inetpub\\wwwroot\\index.htm\"\n                $content = $null\n                if ($exists) {\n                    $content = Get-Content \"c:\\inetpub\\wwwroot\\index.htm\" -Raw\n                }\n                return @{\n                    Result = $content\n                }\n            ";
+
+DependsOn = {
+    "[Script]InstallWebServer"};
+ ConfigurationName = "EnableIIS";
+};
+instance of MSFT_ScriptResource as $MSFT_ScriptResource3ref
+{
+SourceInfo = "::45::9::Script";
+ ResourceID = "[Script]DeployWebsiteContent2";
+ ModuleName = "PSDscResources";
+ SetScript = "\n                $url = \"https://raw.githubusercontent.com/ebibibi/Demos/main/20240510-HCCJP-Arc-Automation/webcontents/logo.png\"\n                $output = \"C:\\inetpub\\wwwroot\\logo.png\"\n                Invoke-WebRequest -Uri $url -OutFile $output\n            ";
+ ModuleVersion = "2.12.0.0";
+ TestScript = "\n                Test-Path \"c:\\inetpub\\wwwroot\\logo.png\"\n            ";
+ GetScript = "\n                $exists = Test-Path \"c:\\inetpub\\wwwroot\\logo.png\"\n                $content = $null\n                if ($exists) {\n                    $content = Get-Content \"c:\\inetpub\\wwwroot\\logo.png\" -Raw\n                }\n                return @{\n                    Result = $content\n                }\n            ";
+
+DependsOn = {
+    "[Script]InstallWebServer"};
+ ConfigurationName = "EnableIIS";
+};
+instance of OMI_ConfigurationDocument
+
+                    {
+ Version="2.0.0";
+
+                        MinimumCompatibleVersion = "1.0.0";
+
+                        CompatibleVersionAdditionalProperties= {"Omi_BaseResource:ConfigurationName"};
+
+                        Author="Administrator";
+
+                        GenerationDate="05/08/2024 11:24:23";
+
+                        GenerationHost="ARC-IISDEMO-MC";
+
+                        Name="EnableIIS";
+
+                    };
