@@ -1,0 +1,27 @@
+1．Windows Admin Center
+ロールを追加
+Files & file sharingからコンテンツ(登壇資料フォルダ内)をc:\inetpub\wwwrootにアップロード
+RemoteDesktopで入ってWeb確認(localhost)
+
+2. SSH via Azure Arc
+ローカルPCからAz ssh arc コマンドで接続
+Powershellを起動
+Install-WindowsFeature web-server
+Cd c:\inetpub\wwwroot
+Copy-Item -Path \\arc-iisdemo-wac\webcontents\* -Destination C:\inetpub\wwwroot –Recurse
+
+3. Run Command
+CloudShell起動
+
+az connectedmachine run-command create --name "enableiis" --machine-name "arc-iisdemo-rc" --resource-group "ArcEnabledServers" --location "Japan East" --script 'Install-WindowsFeature -Name Web-Server; Copy-Item -Path \\arc-iisdemo-wac\webcontents\* -Destination C:\inetpub\wwwroot -Recurse'
+
+4. Azure Automation Runbook
+作成済み
+実行は事前に構成してあるHybridworkerで。
+Hybridworker自体の説明。スケールもできるよ。ソースコントロールもできるよ。
+
+5. Machine Configuration
+ロール消されてもOKだぜ。
+
+HCCJPWebsiteをあらかじめ作って割り当てておく。
+Apply/AndAutoCorrectで割り当てる
