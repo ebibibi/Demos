@@ -98,3 +98,24 @@ Get-GuestConfigurationPackageComplianceStatus -Path .\EnableIIS\EnableIIS.zip
 
 # 構成適用テスト
 Start-GuestConfigurationPackageRemediation -Path .\EnableIIS\EnableIIS.zip
+
+# ここまでで構成ファイル(EnableIIS.zip)が作成されているので「コンピューターの構成」を使って
+# 直接VMに適用することが可能。
+# Azure Policyを使って広く監視 & 適用するには下記を実行。
+
+# Azure Policyの定義を作成
+New-GuestConfigurationPolicy `
+    -PolicyId (New-Guid) `
+    -ContentUri 'https://github.com/ebibibi/Demos/raw/main/20240510-HCCJP-Arc-Automation/EnableIIS/EnableIIS.zip' `
+    -DisplayName 'Enable IIS' `
+    -Description 'This policy enables IIS and deploys website content' `
+    -Path './policies' `
+    -Platform Windows `
+    -Mode ApplyAndAutoCorrect `
+    -PolicyVersion '1.0' `
+    -Verbose
+
+# Policy公開
+$JsonPath = '.\policies\EnableIIS_DeployIfNotExists.json'
+$policyJson = Get-Content $JsonPath -Raw
+New-AzPolicyDefinition -Name 'EnableIIS' -Policy $policyJson -Mode All
