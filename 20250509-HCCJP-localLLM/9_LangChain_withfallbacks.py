@@ -9,7 +9,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 local_model = LocalOpenAI(
     model="qwen3-4b",
     base_url="http://127.0.0.1:1234/v1",
-    api_key="local-api-key"  # ダミー値（多くのローカルAPIは値を無視）
+    api_key="local-api-key"  # ダミーの値
 )
 openai_model = ChatOpenAI(
     model="gpt-4.1",
