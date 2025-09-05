@@ -13,13 +13,15 @@ param sshPublicKey string
 @description('VM size')
 param vmSize string = 'Standard_B2s'
 
+@description('Install VM extensions and runCommand (may fail without outbound). Default off.')
+param enableVmExtensions bool = false
+
 var vnetName = '${prefix}-vnet'
 var clientSubnetName = 'sn-client'
 var serverSubnetName = 'sn-server'
 var clientNsgName = '${prefix}-nsg-client'
 var serverNsgName = '${prefix}-nsg-server'
 var laName = '${prefix}-law'
-var saName = toLower(replace('${prefix}flow${uniqueString(resourceGroup().id)}','-',''))
 var nwName = 'NetworkWatcher_${location}'
 
 // ---------------- Network Watcher ----------------
@@ -39,12 +41,18 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
         name: clientSubnetName
         properties: {
           addressPrefix: '10.10.1.0/24'
+          natGateway: {
+            id: natGw.id
+          }
         }
       }
       {
         name: serverSubnetName
         properties: {
           addressPrefix: '10.10.2.0/24'
+          natGateway: {
+            id: natGw.id
+          }
         }
       }
     ]
@@ -129,9 +137,32 @@ resource serverNsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = {
 resource clientPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
   name: '${prefix}-pip-client'
   location: location
-  sku: { name: 'Basic' }
+  sku: { name: 'Standard' }
   properties: {
-    publicIPAllocationMethod: 'Dynamic'
+    publicIPAllocationMethod: 'Static'
+  }
+}
+
+// ---------------- NAT Gateway (egress for subnets) ----------------
+resource natPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
+  name: '${prefix}-pip-nat'
+  location: location
+  sku: { name: 'Standard' }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+  }
+}
+
+resource natGw 'Microsoft.Network/natGateways@2024-07-01' = {
+  name: '${prefix}-natgw'
+  location: location
+  sku: { name: 'Standard' }
+  properties: {
+    publicIpAddresses: [
+      {
+        id: natPip.id
+      }
+    ]
   }
 }
 
@@ -224,6 +255,8 @@ resource vmServer 'Microsoft.Compute/virtualMachines@2024-07-01' = {
           ]
         }
       }
+      // Install nginx via cloud-init instead of runCommand
+      customData: base64('#cloud-config\npackages:\n  - nginx\nruncmd:\n  - systemctl enable --now nginx\n')
     }
     storageProfile: {
       imageReference: {
@@ -239,7 +272,8 @@ resource vmServer 'Microsoft.Compute/virtualMachines@2024-07-01' = {
 }
 
 // ---------------- Install Nginx on server (runCommand) ----------------
-resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01' = {
+// Optional: runCommand to install nginx (disabled by default)
+resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01' = if (enableVmExtensions) {
   name: 'install-nginx'
   location: location
   parent: vmServer
@@ -250,7 +284,7 @@ resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01'
 }
 
 // ---------------- Network Watcher Agent (VM extensions) ----------------
-resource nwExtClient 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = {
+resource nwExtClient 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (enableVmExtensions) {
   name: 'AzureNetworkWatcherExtension'
   location: location
   parent: vmClient
@@ -264,7 +298,7 @@ resource nwExtClient 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' =
   }
 }
 
-resource nwExtServer 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = {
+resource nwExtServer 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (enableVmExtensions) {
   name: 'AzureNetworkWatcherExtension'
   location: location
   parent: vmServer
@@ -278,19 +312,6 @@ resource nwExtServer 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' =
   }
 }
 
-// ---------------- Storage Account (flow logs) ----------------
-resource sa 'Microsoft.Storage/storageAccounts@2024-01-01' = {
-  name: saName
-  location: location
-  sku: { name: 'Standard_LRS' }
-  kind: 'StorageV2'
-  properties: {
-    allowBlobPublicAccess: false
-    allowSharedKeyAccess: true
-    minimumTlsVersion: 'TLS1_2'
-  }
-}
-
 // ---------------- Log Analytics Workspace ----------------
 resource law 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: laName
@@ -301,35 +322,6 @@ resource law 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   }
 }
 
-// ---------------- NSG Flow Logs + Traffic Analytics ----------------
-resource flowLogs 'Microsoft.Network/networkWatchers/flowLogs@2024-07-01' = {
-  name: '${serverNsgName}-flowlogs'
-  location: location
-  parent: nw
-  properties: {
-    targetResourceId: serverNsg.id
-    enabled: true
-    storageId: sa.id
-    format: {
-      type: 'JSON'
-      version: 2
-    }
-    retentionPolicy: {
-      days: 7
-      enabled: true
-    }
-    flowAnalyticsConfiguration: {
-      networkWatcherFlowAnalyticsConfiguration: {
-        enabled: true
-        workspaceId: law.properties.customerId
-        workspaceResourceId: law.id
-        workspaceRegion: location
-        trafficAnalyticsInterval: 10
-      }
-    }
-  }
-}
-
 // ---------------- Connection Monitor (vm-client -> vm-server: TCP/80) ----------------
 resource connMon 'Microsoft.Network/networkWatchers/connectionMonitors@2024-07-01' = {
   name: '${prefix}-cm'
@@ -337,7 +329,6 @@ resource connMon 'Microsoft.Network/networkWatchers/connectionMonitors@2024-07-0
   parent: nw
   properties: {
     autoStart: true
-    monitoringIntervalInSeconds: 30
     endpoints: [
       { name: 'src', resourceId: vmClient.id }
       { name: 'dst', resourceId: vmServer.id }
