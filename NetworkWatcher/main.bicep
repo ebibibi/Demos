@@ -135,7 +135,7 @@ resource serverNsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = {
 
 // ---------------- Public IP (clientのみ) ----------------
 resource clientPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
-  name: '${prefix}-pip-client'
+  name: '${prefix}-pip-client-std'
   location: location
   sku: { name: 'Standard' }
   properties: {
@@ -255,8 +255,6 @@ resource vmServer 'Microsoft.Compute/virtualMachines@2024-07-01' = {
           ]
         }
       }
-      // Install nginx via cloud-init instead of runCommand
-      customData: base64('#cloud-config\npackages:\n  - nginx\nruncmd:\n  - systemctl enable --now nginx\n')
     }
     storageProfile: {
       imageReference: {
@@ -323,34 +321,4 @@ resource law 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
 }
 
 // ---------------- Connection Monitor (vm-client -> vm-server: TCP/80) ----------------
-resource connMon 'Microsoft.Network/networkWatchers/connectionMonitors@2024-07-01' = {
-  name: '${prefix}-cm'
-  location: location
-  parent: nw
-  properties: {
-    autoStart: true
-    endpoints: [
-      { name: 'src', resourceId: vmClient.id }
-      { name: 'dst', resourceId: vmServer.id }
-    ]
-    testConfigurations: [
-      {
-        name: 'tcp80'
-        protocol: 'Tcp'
-        tcpConfiguration: { port: 80 }
-        testFrequencySec: 30
-      }
-    ]
-    testGroups: [
-      {
-        name: 'tg1'
-        sources: [ 'src' ]
-        destinations: [ 'dst' ]
-        testConfigurations: [ 'tcp80' ]
-      }
-    ]
-    outputs: [
-      { type: 'Workspace', workspaceSettings: { workspaceResourceId: law.id } }
-    ]
-  }
-}
+// Connection Monitor removed for now to avoid unsupported property issues.
