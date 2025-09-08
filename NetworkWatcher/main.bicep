@@ -13,21 +13,35 @@ param sshPublicKey string
 @description('VM size')
 param vmSize string = 'Standard_B2s'
 
-@description('Install VM extensions and runCommand (may fail without outbound). Default off.')
-param enableVmExtensions bool = false
-
 var vnetName = '${prefix}-vnet'
 var clientSubnetName = 'sn-client'
 var serverSubnetName = 'sn-server'
 var clientNsgName = '${prefix}-nsg-client'
 var serverNsgName = '${prefix}-nsg-server'
-var laName = '${prefix}-law'
 var nwName = 'NetworkWatcher_${location}'
 
 // ---------------- Network Watcher ----------------
 resource nw 'Microsoft.Network/networkWatchers@2024-07-01' = {
   name: nwName
   location: location
+}
+
+// ---------------- Storage (for Flow Logs) ----------------
+// Storage account to store Network Watcher flow logs
+var flowLogSaNameRaw = '${replace(prefix, '-', '')}${uniqueString(resourceGroup().id)}fl'
+var flowLogSaName = toLower(substring(flowLogSaNameRaw, 0, min(length(flowLogSaNameRaw), 24)))
+
+resource flowLogStorage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+  name: flowLogSaName
+  location: location
+  sku: { name: 'Standard_LRS' }
+  kind: 'StorageV2'
+  properties: {
+    accessTier: 'Hot'
+    allowBlobPublicAccess: false
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+  }
 }
 
 // ---------------- VNet & Subnets ----------------
@@ -170,6 +184,8 @@ resource natGw 'Microsoft.Network/natGateways@2024-07-01' = {
 resource nicClient 'Microsoft.Network/networkInterfaces@2024-07-01' = {
   name: '${prefix}-nic-client'
   location: location
+  // Ensure VNet and its subnets exist before NIC creation
+  dependsOn: [ vnet ]
   properties: {
     ipConfigurations: [
       {
@@ -188,6 +204,8 @@ resource nicClient 'Microsoft.Network/networkInterfaces@2024-07-01' = {
 resource nicServer 'Microsoft.Network/networkInterfaces@2024-07-01' = {
   name: '${prefix}-nic-server'
   location: location
+  // Ensure VNet and its subnets exist before NIC creation
+  dependsOn: [ vnet ]
   properties: {
     ipConfigurations: [
       {
@@ -270,8 +288,8 @@ resource vmServer 'Microsoft.Compute/virtualMachines@2024-07-01' = {
 }
 
 // ---------------- Install Nginx on server (runCommand) ----------------
-// Optional: runCommand to install nginx (disabled by default)
-resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01' = if (enableVmExtensions) {
+// Optional: runCommand to install nginx
+resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01' = {
   name: 'install-nginx'
   location: location
   parent: vmServer
@@ -281,44 +299,20 @@ resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01'
   }
 }
 
-// ---------------- Network Watcher Agent (VM extensions) ----------------
-resource nwExtClient 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (enableVmExtensions) {
-  name: 'AzureNetworkWatcherExtension'
-  location: location
-  parent: vmClient
+// ---------------- Action Group (Email) ----------------
+// Azure Monitor Action Group to send email notifications
+resource agEmail 'Microsoft.Insights/actionGroups@2023-01-01' = {
+  name: '${prefix}-ag-email'
+  location: 'Global'
   properties: {
-    publisher: 'Microsoft.Azure.NetworkWatcher'
-    type: 'NetworkWatcherAgentLinux'
-    typeHandlerVersion: '1.4'
-    autoUpgradeMinorVersion: true
-    enableAutomaticUpgrade: true
-    settings: {}
+    groupShortName: 'nwalert'
+    enabled: true
+    emailReceivers: [
+      {
+        name: 'PrimaryEmail'
+        emailAddress: 'ebibibi@gmail.com'
+        useCommonAlertSchema: true
+      }
+    ]
   }
 }
-
-resource nwExtServer 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (enableVmExtensions) {
-  name: 'AzureNetworkWatcherExtension'
-  location: location
-  parent: vmServer
-  properties: {
-    publisher: 'Microsoft.Azure.NetworkWatcher'
-    type: 'NetworkWatcherAgentLinux'
-    typeHandlerVersion: '1.4'
-    autoUpgradeMinorVersion: true
-    enableAutomaticUpgrade: true
-    settings: {}
-  }
-}
-
-// ---------------- Log Analytics Workspace ----------------
-resource law 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
-  name: laName
-  location: location
-  properties: {
-    sku: { name: 'PerGB2018' }
-    retentionInDays: 30
-  }
-}
-
-// ---------------- Connection Monitor (vm-client -> vm-server: TCP/80) ----------------
-// Connection Monitor removed for now to avoid unsupported property issues.
