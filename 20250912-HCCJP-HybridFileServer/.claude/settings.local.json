@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__microsoft_learn_mcp__microsoft_docs_search",
+      "mcp__microsoft_learn_mcp__microsoft_docs_fetch",
+      "Bash(mv:*)",
+      "Bash(rm:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "microsoft_learn_mcp",
+    "context7"
+  ]
+}
