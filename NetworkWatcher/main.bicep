@@ -129,6 +129,20 @@ resource serverNsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = {
           destinationPortRange: '80'
         }
       }
+      // インターネットからのHTTP(80/TCP)を許可
+      {
+        name: 'Allow-HTTP-Internet'
+        properties: {
+          priority: 350
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourceAddressPrefix: 'Internet'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '80'
+        }
+      }
       // SSH（操作用）
       {
         name: 'Allow-SSH-Internet'
@@ -147,9 +161,20 @@ resource serverNsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = {
   }
 }
 
-// ---------------- Public IP (clientのみ) ----------------
+// ---------------- Public IPs ----------------
+// Client public IP
 resource clientPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
   name: '${prefix}-pip-client-std'
+  location: location
+  sku: { name: 'Standard' }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+  }
+}
+
+// Server public IP
+resource serverPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
+  name: '${prefix}-pip-server-std'
   location: location
   sku: { name: 'Standard' }
   properties: {
@@ -213,6 +238,7 @@ resource nicServer 'Microsoft.Network/networkInterfaces@2024-07-01' = {
         properties: {
           privateIPAllocationMethod: 'Dynamic'
           subnet: { id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, serverSubnetName) }
+          publicIPAddress: { id: serverPip.id }
         }
       }
     ]
@@ -287,15 +313,19 @@ resource vmServer 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   }
 }
 
-// ---------------- Install Nginx on server (runCommand) ----------------
-// Optional: runCommand to install nginx
-resource installNginx 'Microsoft.Compute/virtualMachines/runCommands@2024-07-01' = {
+// ---------------- Install Nginx on server (Custom Script for Linux) ----------------
+resource installNginx 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = {
   name: 'install-nginx'
   location: location
   parent: vmServer
   properties: {
-    source: { script: 'sudo apt-get update && sudo apt-get install -y nginx && sudo systemctl enable --now nginx' }
-    asyncExecution: false
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      commandToExecute: 'bash -c "apt-get update && apt-get install -y nginx && systemctl enable --now nginx"'
+    }
   }
 }
 
