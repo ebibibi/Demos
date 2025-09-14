@@ -324,7 +324,7 @@ resource installNginx 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' 
     typeHandlerVersion: '2.1'
     autoUpgradeMinorVersion: true
     settings: {
-      commandToExecute: 'bash -c "apt-get update && apt-get install -y nginx && systemctl enable --now nginx"'
+      commandToExecute: 'sudo bash -c "apt-get update && apt-get install -y --no-install-recommends nginx-core && systemctl enable --now nginx"'
     }
   }
 }
